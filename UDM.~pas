@@ -1,0 +1,141 @@
+unit UDM;
+
+interface
+
+uses
+  SysUtils, Classes, DBTables, DB, ADODB;
+
+type
+  TDM = class(TDataModule)
+    QrSaudePro: TQuery;
+    QrGeral: TQuery;
+    QInsBenef: TQuery;
+    Qr_PesqMatr: TQuery;
+    QrMatricula: TQuery;
+    QrBeneficiario: TQuery;
+    QrFamilia: TQuery;
+    QrSaudePro1: TQuery;
+    QrSaudePro2: TQuery;
+    QrInsAnotAdm: TQuery;
+    QrSaudePro3: TQuery;
+    Qr_UpFilialRegiao: TQuery;
+    QrEndereco: TQuery;
+    Qr_InsContaFin: TQuery;
+    Qr_UpContaFin: TQuery;
+    Qr_InsModulo: TQuery;
+    Qr_UpModulo: TQuery;
+    Qr_InsDoc: TQuery;
+    Qr_UpDoc: TQuery;
+    QrySaudePro: TQuery;
+    QrySaudepro2: TQuery;
+    QrySaudePro3: TQuery;
+    QrySaudePro5: TQuery;
+    QrySaudePro4: TQuery;
+    QrySaudePro10: TQuery;
+    QrySaudePro11: TQuery;
+    QrySaudePro13: TQuery;
+    QrySaudePro14: TQuery;
+    QrySaudePro12: TQuery;
+    Qr_Geral: TQuery;
+    Qr_InsSuspensao: TQuery;
+    QrUpBalanceLine: TQuery;
+    QrFindAnot: TQuery;
+    QrComparaSusp: TQuery;
+    QrSet: TQuery;
+    QrFindFamiliaI: TQuery;
+    QrySaudePro6: TQuery;
+    QrySaudePro7: TQuery;
+    QrySaudePro8: TQuery;
+    QrySaudePro9: TQuery;
+    QrDelHMigrado: TQuery;
+    QrHMigrado: TQuery;
+    QrInsHMigrado: TQuery;
+    AdoQuery: TQuery;
+    TblMaxDiff: TTable;
+    QrInsRecalculoMens: TQuery;
+    QrInsHistMod: TQuery;
+    QrUpNosNum: TQuery;
+    QrUpModHis: TQuery;
+    QrMotBloq: TQuery;
+    SP_HISTORICO: TStoredProc;
+    SP_COMPLEMENTO: TStoredProc;
+    QrLimitacoes: TQuery;
+    QrInsLimitacao: TQuery;
+    SP_Matricula: TStoredProc;
+    SP_Atualizar_Data_adesao: TStoredProc;
+    SP_DataBalanceLine: TStoredProc;
+    SP_Cartoes: TStoredProc;
+    QrUpNosNumI: TQuery;
+    QrInsFatLancMod: TQuery;
+    QrMinHandleMod: TQuery;
+    SP_ESF: TStoredProc;
+    SP_SECAO: TStoredProc;
+    QrUpdateModHist: TQuery;
+    QrMaxHandleHist: TQuery;
+    QrMaxMod_hist: TQuery;
+    SP_ATUALIZAR_RG: TStoredProc;
+    QrySaudePro15: TQuery;
+    QrySaudePro16: TQuery;
+    SP_UpdateMatriculaInternet: TStoredProc;
+    DBSaude: TDatabase;
+    QrySaudePro17: TQuery;
+    QrAgencia: TQuery;
+    QrCBO: TQuery;
+    QrGeral2: TQuery;
+    SP_UpdateMatriculaDependentes: TStoredProc;
+    QrySaudePro18: TQuery;
+    QrTESTE: TQuery;
+    QrySaudePro19: TQuery;
+    QrGeralAux: TQuery;
+    SPCarga_CSC: TStoredProc;
+    ATUALIZAR_RSP_LEGAL: TStoredProc;
+    QrCODOCUP: TQuery;
+    qAux: TQuery;
+    qUpModuloPensionista: TQuery;
+    Qr_handle: TQuery;
+    QrMatriculaBen: TQuery;
+    qAuxFam: TQuery;
+    Qr_handleFam: TQuery;
+    procedure DataModuleCreate(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    procedure LogMessage(Mensagem: WideString);
+  end;
+
+var
+  DM: TDM;
+
+implementation
+
+Uses
+
+UMigBenef, Ulogin, uBeneficiarios, Math, SVCMGR, windows;
+
+{$R *.dfm}
+
+procedure TDM.DataModuleCreate(Sender: TObject);
+begin
+
+FrmLogin := TFrmLogin.Create(nil);
+FrmLogin.EdPwdExitControlM(self);  //Pega Usuário e Pwd
+
+FrmBeneficiario := TFrmBeneficiario.Create(nil);
+FrmBeneficiario.Executar_ControlM; //Chama para executar a rotina via controlM
+logMessage('Finalizou');
+//FrmBeneficiario.Executar;
+
+end;
+
+procedure TDM.LogMessage(Mensagem: WideString);
+var
+  FEventLogger: TEventLogger;
+begin
+  FEventLogger := TEventLogger.Create(ExtractFileName(ParamStr(0)));
+  FEventLogger.LogMessage(Mensagem, EVENTLOG_ERROR_TYPE, 0, 0);
+  FEventLogger.Free;
+end;
+
+
+end.

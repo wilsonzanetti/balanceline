@@ -1,0 +1,450 @@
+CREATE OR REPLACE PROCEDURE "CARREGAR_DIFFS" is
+/*
+  Created by Alessandro Luiz Mamus - 14/03/2003 - 11:25 H
+  updated by Alessandro Luiz Mamus on 22, september 2007.
+  * Inclu?do o campo TX_RCBR_INFM na carga da TCSC039_diff*
+  *02/08/2007 - Alessandro L Mamus
+  Alterado o tipo de grava??o para o campo csc039wnrocelu - de inteiro para string
+  alterado o tamanho da string da composi??o do nr do celular - de 399 para 400
+  *********************************************************
+*/
+  Arquivo UTL_FILE.FILE_TYPE; --variavel do tipo arquivo
+  Linha varchar2(1023);
+  textoaux varchar2(1023);
+  vDataNasc varchar2(10);
+  vDataAux varchar2(11);
+  vDataCad varchar2(10);
+  vDataAtua varchar2(10);
+  vDataSitu varchar2(10);
+  vDataCartao varchar2(10);
+  vDataAdocao varchar2(10);
+  vDataVig varchar2(10);
+  vMotivo number;
+  vNroCartao number;
+  vRegY number;
+  vCodSitu number;
+  vDepRefr number;
+  vStsRefr number;
+  vCpf number;
+  vDigCpf number;
+  vQtHeader37 number;
+  vQtHeader39 number;
+  vQtReg37 number;
+  vQtReg39 number;
+  vInformativo varchar2(1);
+  --S.C-->180977
+  V_TX_NTZ Varchar2(10);
+  V_TX_REG_GRL Varchar2(12);
+  V_TX_ORG_EMT Varchar2(8);
+  V_DT_REG_GRL Varchar2(10);
+  V_CD_BRL_OCP VARCHAR2(9);
+  V_IN_OTR_USU Varchar2(1);
+  V_TX_NM_RSP Varchar2(50);
+  V_DT_NSC_RSP Varchar2(10);
+  V_TX_SEXO_RSP Varchar2(1);
+  V_NR_CPF_RSP VARCHAR2(13);
+  V_CD_EST_CVL_RSP Varchar2(1);
+  V_TX_NTZ_RSP Varchar2(10);
+  V_TX_REG_GRL_RSP VARCHAR2(12);
+  V_TX_ORG_EMT_RSP VARCHAR2(8);
+  V_DT_REG_GRL_RSP VARCHAR2(10);
+  V_CD_BRL_OCP_RSP Varchar2(6);
+  V_NR_LGR          number(10);
+  V_TX_CMPT          varchar2(40);
+  V_NR_CPF_RSP_FNCO  varchar2(11);
+  V_NM_RSP_FNCO      varchar2(50);
+begin
+    execute immediate 'alter session set nls_date_format=''dd/mm/yyyy hh24:mi:ss'' ';
+  --*******************************************************************************************
+  --      Ler o arquivo texto gerado a partir do CSC e povoar a Tabela TCSC037_DIFF
+  --*******************************************************************************************
+  --Deletar a tabela TCSC037_DIFF
+  execute immediate ('truncate table TCSC037_DIFF');
+  --Variavel do tipo arquivo que recebe o handle do arquivo real
+  Arquivo:=utl_file.fopen('CARGA','csc037dif.txt','r');
+  utl_file.get_line(Arquivo,linha);  --le o Header
+  --Obter a quantidade de Registros a serem incluidos na TCSC037_DIFF
+  textoaux:=linha;
+  VqtHeader37:=To_number(substr(textoaux,7,9));
+  loop
+  begin
+       utl_file.get_line(Arquivo,linha);  --le a linha
+       textoaux:=linha;
+       Vdataaux:=substr(textoaux,67,10);
+       vDataNasc:=null;
+       if length(vDataAux) <> 0 then
+          vDataNasc:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,114,10);
+       vDataCad:=null;
+       if length(vDataAux) <> 0 then
+          vDatacad:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,124,10);
+       vDataAtua:=null;
+       if length(vDataAux) <> 0 then
+          vDataAtua:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,147,10);
+       vDataSitu:=null;
+       if length(vDataAux) <> 0 then
+          vDatasitu:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,157,10);
+       vDataCartao:=null;
+       if length(vDataAux) <> 0 then
+          Vdatacartao:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,157,10);
+       Vdataadocao:=null;
+       if length(vDataAux) <> 0 then
+          VdataAdocao:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,79,2);
+       if vDataAux='XX' then -- final do arquivo - Trailler
+         exit;
+       end if;
+       vMotivo:=null;--motivo
+       if length(vDataAux) <> 0 then
+          vMotivo:=to_number(substr(textoaux,79,2));
+       end if;
+       Vdataaux:=substr(textoaux,134,9);
+       vNroCartao:=null;--Numero do Cart?o
+       if length(vDataAux) <> 0 then
+          vNroCartao:=to_number(substr(textoaux,134,9));
+       end if;
+       Vdataaux:=substr(textoaux,143,1);
+       vRegY:=null;--Registro
+       if length(vDataAux) <> 0 then
+          vRegY:=to_number(substr(textoaux,143,1));
+       end if;
+       Vdataaux:=substr(textoaux,144,3);
+       vCodSitu:=null;--Codigo da Situac?o
+       if length(vDataAux) <> 0 then
+          vCodSitu:=to_number(substr(textoaux,144,3));
+       end if;
+       Vdataaux:=substr(textoaux,221,2);
+       Vdeprefr:=null;--Dependente de referencia
+       if length(vDataAux) <> 0 then
+          Vdeprefr:=to_number(substr(textoaux,221,2));
+       end if;
+       Vdataaux:=substr(textoaux,223,1);
+       VStsrefr:=null;--status de referencia
+       if length(vDataAux) <> 0 then
+          Vstsrefr:=to_number(substr(textoaux,223,1));
+       end if;
+       --inserc?o na tabela TCSC037_DIFF
+     begin
+       insert into TCSC037_DIFF
+       (CSC037WMTRBENF,CSC037WNRODEPY,CSC037WSEQTITL,CSC037WCODVINC,CSC037WNOMBENF,CSC037WINDSEXO,
+        CSC037WDMANASC,CSC037WINDSITY,CSC037WCODGRPOBENF,CSC037WINDMOTV,CSC037WINDECIV,CSC037WDMAADMS,
+        CSC037WDMAINICSUSP,CSC037WDMAFIMYSUSP,CSC037WDMAFIMYDRTO,CSC037WDMACADY,CSC037WDMAATUA,
+        CSC037WNROCART,CSC037WINDREGYPROV,CSC037WCODSITU,CSC037WDMASITU,CSC037WDMAVALICART,
+        CSC037WPRFCART,CSC037WDMAADCAO,CSC037WNOMREDZ,CSC037WMTRREFR,CSC037WDEPREFR,CSC037WSTSREFR,HANDLE)
+       values
+       (substr(textoaux,1,9),to_number(substr(textoaux,10,2)),to_number(substr(textoaux,12,2)),
+        to_number(substr(textoaux,14,2)),substr(textoaux,16,50),substr(textoaux,66,1),
+        vDataNasc,to_number(substr(textoaux,77,1)),to_number(substr(textoaux,78,1)),vMotivo,
+        substr(textoaux,81,1),to_number(substr(textoaux,82,8)),to_number(substr(textoaux,90,8)),
+        to_number(substr(textoaux,98,8)),to_number(substr(textoaux,106,8)),vDataCad,vDataAtua,
+        vNroCartao,vRegY,vCodSitu,vDataSitu,vDataCartao,substr(textoaux,167,5),vDataAdocao,
+        substr(textoaux,182,30),substr(textoaux,212,9),vDepRefr,vStsRefr,to_number(substr(textoaux,224,10)) );
+        commit;
+    exception
+        when others then
+           insert into migdetlogbenner
+            values
+           (1,sysdate,1,'Erro-Balance Line','Erro ao inserir a matr?cula-->'||substr(textoaux,1,9) ||' na tabela TCSC037_DIFF');
+        end;
+    exception
+        when no_data_found then   --quando nenhum dado for encontrado na leitura
+          exit;
+    end;
+  end loop;
+  --func?o que testa se o arquivo esta aberto
+  if utl_file.is_open(Arquivo) then
+     utl_file.fclose(Arquivo); --fechar o arquivo
+  end if;
+  --*******************************************************************************************
+  --      Ler o arquivo texto gerado a partir do CSC e povoar a Tabela TCSC039_DIFF
+  --*******************************************************************************************
+  --Deletar a tabela TCSC039_DIFF
+  execute immediate ('truncate table TCSC039_DIFF');
+  --Variavel do tipo arquivo que recebe o handle do arquivo real
+  Arquivo:=utl_file.fopen('CARGA','csc039dif.txt','r');
+  utl_file.get_line(Arquivo,linha);  --le o Header
+  --Obter a quantidade de Registros a serem incluidos na TCSC039_DIFF
+  textoaux:=linha;
+  VqtHeader39:=To_number(substr(textoaux,7,6));
+  loop
+  begin
+       utl_file.get_line(Arquivo,linha);  --le a linha
+       textoaux:=linha;
+       Vdataaux:=substr(textoaux,52,10);
+       vDataAtua:=null;--data Atualizac?o
+       if length(vDataAux) <> 0 then
+          vDataAtua:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,65,10);
+       Vdatavig:=null;--Data Vigencia
+       if length(vDataAux) <> 0 then
+          Vdatavig:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,78,10);
+       VdataNasc:=null;--Data Vigencia Anterior
+       if length(vDataAux) <> 0 then
+          VdataNasc:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,88,10);
+       VdataCad:=null;--Data Ultimo Pgto
+       if length(vDataAux) <> 0 then
+          VdataCad:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,321,10);
+       VdataSitu:=null;--Data Vigencia Pgto
+       if length(vDataAux) <> 0 then
+          VdataSitu:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,408,10);
+       Vdataadocao:=null; --data atual endereco
+       if length(vDataAux) <> 0 then
+          VdataAdocao:=SubStr(vDataAux,1,2) || '/' || SubStr(vDataAux,4,2) || '/' || SubStr(vDataAux,7,4);
+       end if;
+       Vdataaux:=substr(textoaux,188,9);
+       Vregy:=null;--cep
+       if Vdataaux='XXXXXXXXX' then
+          exit;
+       end if;
+       if length(vDataAux) <> 0 then
+          Vregy:=substr(textoaux,188,9);
+       end if;
+       Vdataaux:=substr(textoaux,245,3);
+       vMotivo:=null;--DDD
+       if length(vDataAux) <> 0 then
+          vMotivo:=substr(textoaux,245,3);
+       end if;
+       Vdataaux:=substr(textoaux,248,9);
+       vCodSitu:=null;--Telefone
+       if length(vDataAux) <> 0 then
+          Vcodsitu:=substr(textoaux,248,9);
+       end if;
+       Vdataaux:=substr(textoaux,260,9);
+       vDepRefr:=null;--telefone com
+       if length(vDataAux) <> 0 then
+          VDepRefr:=substr(textoaux,260,9);
+       end if;
+       Vdataaux:=substr(textoaux,285,11);
+       vCpf:=null;--cpf
+       if length(vDataAux) <> 0 then
+          VCpf:=substr(textoaux,285,11);
+       end if;
+       Vdataaux:=substr(textoaux,296,3);
+       vDigCpf:=null;--digito CPF
+       if length(vDataAux) <> 0 then
+          VDigCpf:=substr(textoaux,296,3);
+       end if;
+       --conforme e-mail serafim 22/03/2007
+       vInformativo:=null;
+       if length(trim(substr(textoaux,506,1))) > 0 then
+          vInformativo:=trim(substr(textoaux,506,1));
+       end if;
+       --S.C. 180.977
+       V_TX_NTZ    :=Null;
+       V_TX_REG_GRL:=Null;
+       V_TX_ORG_EMT:=Null;
+       V_DT_REG_GRL:=Null;
+       V_CD_BRL_OCP:=Null;
+       V_IN_OTR_USU:=Null;
+       V_TX_NM_RSP :=Null;
+       V_DT_NSC_RSP:=Null;
+       V_TX_SEXO_RSP:=Null;
+       V_NR_CPF_RSP :=Null;
+       V_CD_EST_CVL_RSP:=Null;
+       V_TX_NTZ_RSP :=Null;
+       V_TX_REG_GRL_RSP:=Null;
+       V_TX_ORG_EMT_RSP:=Null;
+       V_DT_REG_GRL_RSP:=Null;
+       V_CD_BRL_OCP_RSP:=Null;
+       V_NR_LGR:=Null;
+       V_TX_CMPT:=Null;
+       V_NR_CPF_RSP_FNCO:=Null;
+       V_NM_RSP_FNCO:=Null;
+       If ((substr(textoaux,1,3)='150') or (substr(textoaux,1,3)='160')) Then --SOMENTE FAM?LIA II
+          if length(substr(textoaux,456,10)) > 0 then
+             V_TX_NTZ:=Trim(substr(textoaux,456,10));
+          End If;
+          if length(substr(textoaux,466,12)) > 0 then
+             V_TX_REG_GRL:=Trim(substr(textoaux,466,12));
+          End If;
+          if length(substr(textoaux,478,8)) > 0 then
+             V_TX_ORG_EMT:=Trim(substr(textoaux,478,8));
+          End If;
+          if length(substr(textoaux,486,10)) > 0 then
+              V_DT_REG_GRL:=Trim(SubStr(textoaux,486,2) || '/' || SubStr(textoaux,489,2) || '/' || SubStr(textoaux,492,4));
+          End If;
+          if length(substr(textoaux,496,9)) > 0 then
+              V_CD_BRL_OCP:=Trim(SubStr(textoaux,496,9));
+          End If;
+          if length(substr(textoaux,505,1)) > 0 then
+              V_IN_OTR_USU:=Trim(SubStr(textoaux,505,1));
+          End If;
+          if length(substr(textoaux,507,50)) > 0 then
+              V_TX_NM_RSP:=Trim(SubStr(textoaux,507,50));
+          End If;
+          if length(substr(textoaux,557,10)) > 0 then
+              V_DT_NSC_RSP:=trim(SubStr(textoaux,557,2) || '/' || SubStr(textoaux,560,2) || '/' || SubStr(textoaux,563,4));
+          End If;
+          if length(substr(textoaux,567,1)) > 0 then
+              V_TX_SEXO_RSP:=Trim(SubStr(textoaux,567,1));
+          End If;
+          if length(substr(textoaux,568,13)) > 0 then
+              V_NR_CPF_RSP:=trim(SubStr(textoaux,568,13));
+          End If;
+          if length(substr(textoaux,581,1)) > 0 Then
+             V_CD_EST_CVL_RSP:=Trim(SubStr(textoaux,581,1));
+          End If;
+          if length(substr(textoaux,582,10)) > 0 then
+              V_TX_NTZ_RSP:=Trim(SubStr(textoaux,582,10));
+          End If;
+          if length(substr(textoaux,592,12)) > 0 then
+              V_TX_REG_GRL_RSP:=Trim(SubStr(textoaux,592,12));
+          End If;
+          if length(substr(textoaux,604,8)) > 0 then
+              V_TX_ORG_EMT_RSP:=Trim(SubStr(textoaux,604,8));
+          End If;
+          if length(substr(textoaux,612,10)) > 0 then
+              V_DT_REG_GRL_RSP:=Trim(SubStr(textoaux,612,2) || '/' || SubStr(textoaux,615,2) || '/' || SubStr(textoaux,618,4));
+          End If;
+          if length(substr(textoaux,622,6)) > 0 then
+              V_CD_BRL_OCP_RSP:=Trim(SubStr(textoaux,622,6));
+          End If;
+          if length(substr(textoaux,636,10)) > 0 then
+              V_NR_LGR:=Trim(SubStr(textoaux,636,10));
+          End If;
+          if length(substr(textoaux,646,10)) > 0 then
+              V_TX_CMPT:=Trim(SubStr(textoaux,646,10));
+          End If;
+          if length(substr(textoaux,686,11)) > 0 then
+              V_NR_CPF_RSP_FNCO:=Trim(SubStr(textoaux,686,11));
+          End If;
+          if length(substr(textoaux,697,50)) > 0 then
+              V_NM_RSP_FNCO:=Trim(SubStr(textoaux,697,50));
+          End If;
+       End If;
+       --inserc?o na tabela TCSC037_DIFF
+    begin
+       insert into TCSC039_DIFF
+       (CSC039WMTRBENF,CSC039WNRODEPY,CSC039WCODCARR,CSC039WCODVPYY,CSC039WQTDANUE,CSC039WINDADIA,CSC039WVLRSLDO,
+        CSC039WENDTRAB,CSC039WNROCNTACORR,CSC039WPRFAGEN,CSC039WDMAATUA,CSC039WCODPLAN,CSC039WDMAVIGE,
+        CSC039WCODPLANANTE,CSC039WDMAVIGEANTE,CSC039WDMAULTMPGTO,CSC039WENDCORR,CSC039WBAICORR,CSC039WCEPCORR,
+        CSC039WMUNCORR,CSC039WUFYCORR,CSC039WINDCARTPAGO,CSC039WCODUSER,CSC039WINDCARE,CSC039WVARPLAN,
+        CSC039WCODOCUP,CSC039WDDDRESI,CSC039WTELRESI,CSC039WDDDCOME,CSC039WTELCOME,CSC039WRAMCOME,CSC039WMTRANTE,
+        CSC039WDEPANTE,CSC039WNROCPFY,CSC039WDIGCPFY,CSC039WQTDANOSCASI,CSC039WTPOPGTO,CSC039WDIAPGTO,
+        CSC039WQTDDIASINAD,CSC039WINDENDECORR,CSC039WPRFDEPEUSER,CSC039WDMAVIGEPGTO,CSC039WNROSCAO,CSC039WPRFDEPERESP,
+        CSC039WENDMAIL,CSC039WDDDCELU,CSC039WNROCELU,CSC039WDMAATUAENDE,CSC039WMTRCORR,CSC039WDDDFAXY,CSC039WNROFAXY,
+        CSC039WOPCTRNS,CSC039WCODCOMS,CSC039WINDLIMI,CSC039WINDACID,TX_RCBR_INFM,TX_NTZ,TX_REG_GRL,TX_ORG_EMT,
+        DT_REG_GRL,CD_BRL_OCP,IN_OTR_USU,TX_NM_RSP,DT_NSC_RSP,TX_SEXO_RSP,NR_CPF_RSP,CD_EST_CVL_RSP,TX_NTZ_RSP,TX_REG_GRL_RSP,
+        TX_ORG_EMT_RSP,DT_REG_GRL_RSP,CD_BRL_OCP_RSP,NR_LGR,TX_CMPT,NR_CPF_RSP_FNCO,NM_RSP_FNCO)
+       values
+       (substr(textoaux,1,9),to_number(substr(textoaux,10,2)),to_number(substr(textoaux,12,2)),to_number(substr(textoaux,14,3)),
+        to_number(substr(textoaux,17,2)),substr(textoaux,19,1),to_number(substr(textoaux,20,11)),
+        substr(textoaux,32,5),substr(textoaux,37,10),substr(textoaux,47,5),vDataAtua,to_number(substr(textoaux,62,3)),
+        vDataVig,to_number(substr(textoaux,75,3)),vDataNasc,vDataCad,substr(textoaux,98,60),
+        substr(textoaux,158,30),vRegY,substr(textoaux,197,30),substr(textoaux,227,2),to_number(substr(textoaux,229,1)),
+        substr(textoaux,230,8),to_number(substr(textoaux,238,1)),to_number(substr(textoaux,239,3)),
+        to_number(substr(textoaux,242,3)),vMotivo,vCodSitu,to_number(substr(textoaux,257,3)),Vdeprefr,
+        to_number(substr(textoaux,269,5)),substr(textoaux,274,9),to_number(substr(textoaux,283,2)),vCpf,vDigCpf,
+        to_number(substr(textoaux,299,5)),to_number(substr(textoaux,303,4)),TO_NUMBER(substr(textoaux,307,4)),
+        TO_NUMBER(substr(textoaux,311,4)),substr(textoaux,315,1),substr(textoaux,316,5),vDataSitu,
+        to_number(substr(textoaux,331,9)),substr(textoaux,340,5),substr(textoaux,345,50),
+        to_number(substr(textoaux,395,4)),substr(textoaux,400,8),vDataAdocao,substr(textoaux,418,9),
+        to_number(substr(textoaux,427,4)),to_number(substr(textoaux,431,9)),substr(textoaux,440,1),
+        to_number(substr(textoaux,441,3)),to_number(substr(textoaux,444,1)),to_number(substr(textoaux,445,1)),vInformativo,V_TX_NTZ,V_TX_REG_GRL,V_TX_ORG_EMT,
+        V_DT_REG_GRL,V_CD_BRL_OCP,V_IN_OTR_USU,V_TX_NM_RSP,V_DT_NSC_RSP,V_TX_SEXO_RSP,V_NR_CPF_RSP,V_CD_EST_CVL_RSP,V_TX_NTZ_RSP,V_TX_REG_GRL_RSP,
+        V_TX_ORG_EMT_RSP,V_DT_REG_GRL_RSP,V_CD_BRL_OCP_RSP,V_NR_LGR,V_TX_CMPT,V_NR_CPF_RSP_FNCO,V_NM_RSP_FNCO);
+        commit;
+     exception
+        when others then
+           insert into migdetlogbenner
+            values
+           (1,sysdate,1,'Erro-Balance Line','Erro ao inserir a matr?cula-->'||substr(textoaux,1,9) ||' na tabela TCSC039_DIFF');
+        end;
+    exception
+        when no_data_found then   --quando nenhum dado for encontrado na leitura
+          exit;
+    end;
+  end loop;
+  --func?o que testa se o arquivo esta aberto
+  if utl_file.is_open(Arquivo) then
+     utl_file.fclose(Arquivo); --fechar o arquivo
+  end if;
+ --Altered by Alessandro Luiz Mamus - 06/05/2003- 15:51 H
+  --Obter qtde. de registros que foram inseridos nas dif. para validac?o
+  SELECT COUNT(*) INTO VQTREG37 FROM TCSC037_DIFF;
+  SELECT COUNT(*) INTO VQTREG39 FROM TCSC039_DIFF;
+  --Inserir os valores na Tabela MigQuantidade_diff para validac?o
+  INSERT INTO MIGQUANTIDADE_DIFF
+  (ID_SEQUENCIAL,NU_HEADER_37,NU_HEADER_39,NU_QTD_37DIF,NU_QTD_39DIF,DT_MIGRACAO)
+  VALUES
+  (SEQ_MIGRACAO.Nextval,VQTHEADER37,VQTHEADER39,VQTREG37,VQTREG39,SYSDATE);
+  commit;
+  --*********************************************************************************************
+  --               Atualizar o campo SERVICOPROPRIO NA TCSC037 E TCSC037_DIFF
+  --*********************************************************************************************
+  UPDATE TCSC037
+     SET SERVICOPROPRIO=1
+   WHERE CSC037WCODGRPOBENF=7 AND CSC037WMTRBENF IN (SELECT MATRICULA FROM MIGFUNC_SERVICOPROPRIO);
+  commit;
+  UPDATE TCSC037
+     SET SERVICOPROPRIO=0
+   WHERE CSC037WCODGRPOBENF=7 AND CSC037WMTRBENF NOT IN (SELECT /*+ CACHE(migfunc_servicoproprio) */MATRICULA FROM MIGFUNC_SERVICOPROPRIO);
+  commit;
+  UPDATE TCSC037_DIFF
+     SET SERVICOPROPRIO=1
+   WHERE CSC037WCODGRPOBENF=7 AND CSC037WMTRBENF IN (SELECT MATRICULA FROM MIGFUNC_SERVICOPROPRIO);
+  commit;
+  UPDATE TCSC037_DIFF
+     SET SERVICOPROPRIO=0
+   WHERE CSC037WCODGRPOBENF=7 AND CSC037WMTRBENF NOT IN (SELECT /*+ CACHE(migfunc_servicoproprio) */ MATRICULA FROM MIGFUNC_SERVICOPROPRIO);
+  commit;
+  --**********************************************************************************************
+  --           AJUSTAR AS DATAS INVALIDAS DA TABELA TCSC037_DIFF E TCSC039_DIFF APOS A CARGA
+  --**********************************************************************************************
+    UPDATE TCSC037_DIFF SET CSC037WDMANASC = NULL
+    WHERE CSC037WDMANASC='01/01/0001' OR TO_NUMBER(TO_CHAR(CSC037WDMANASC,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC037_DIFF SET CSC037WDMACADY = NULL
+    WHERE CSC037WDMACADY='01/01/0001' OR  TO_NUMBER(TO_CHAR(CSC037WDMACADY,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC037_DIFF SET CSC037WDMAADCAO = NULL
+    WHERE CSC037WDMAADCAO='01/01/0001' OR TO_NUMBER(TO_CHAR(CSC037WDMAADCAO,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC039_DIFF SET CSC039WDMAATUA=NULL
+    WHERE CSC039WDMAATUA='01/01/0001' OR  TO_NUMBER(TO_CHAR(CSC039WDMAATUA,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC039_DIFF SET CSC039WDMAVIGE = NULL
+    WHERE CSC039WDMAVIGE='01/01/0001' OR  TO_NUMBER(TO_CHAR(CSC039WDMAVIGE,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC039_DIFF SET CSC039WDMAVIGEPGTO = NULL
+    WHERE CSC039WDMAVIGEPGTO='01/01/0001' OR  TO_NUMBER(TO_CHAR(CSC039WDMAVIGEPGTO,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC039_DIFF SET CSC039WDMAATUA=NULL
+    WHERE CSC039WDMAATUA='01/01/0001' OR  TO_NUMBER(TO_CHAR(CSC039WDMAATUA,'YYYY')) < 1800;
+    COMMIT;
+    UPDATE TCSC039_DIFF Set DT_NSC_RSP=NULL
+    WHERE DT_NSC_RSP Is Not Null And DT_NSC_RSP='01/01/0001';
+    COMMIT;
+ --**********************************************************************************************************************
+ --UPDATE PARA ATUALIZAR O GRUPO DO DEPENDENTE DE ACORDO COM O TITULAR --FALHA NO CSC DATA MODIFICADO: 15/01/2003 19:00
+ --MACIEL E ALESSANDRO MAMUS
+ --**********************************************************************************************************************
+--  update tcsc037_diff
+/*     set csc037wcodgrpobenf=(select distinct c37.csc037wcodgrpobenf
+                               from tcsc037 c37,
+                                    tcsc039 c39
+                              where c37.csc037wmtrbenf=c39.csc039wmtrbenf and
+                                    c37.csc037wnrodepy=c39.csc039wnrodepy and
+                                    c37.csc037wseqtitl=c39.csc039wnrodepy and
+                                    c39.csc039wmtrbenf=tcsc037_diff.csc037wmtrbenf);
+  COMMIT;   */
+end CARREGAR_DIFFS;

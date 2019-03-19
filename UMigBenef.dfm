@@ -1,0 +1,368 @@
+object FrmBeneficiario: TFrmBeneficiario
+  Left = 409
+  Top = 207
+  BorderStyle = bsDialog
+  Caption = 
+    'Migra'#231#227'o das Diferenciais - Oracle - Vers'#227'o 28.01.10 - Vers'#227'o Co' +
+    'nsolida'#231#227'o - Produ'#231#227'o'
+  ClientHeight = 266
+  ClientWidth = 653
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'MS Sans Serif'
+  Font.Style = []
+  KeyPreview = True
+  OldCreateOrder = False
+  Position = poScreenCenter
+  OnClose = FormClose
+  OnKeyPress = FormKeyPress
+  PixelsPerInch = 96
+  TextHeight = 13
+  object Label1: TLabel
+    Left = 329
+    Top = 25
+    Width = 102
+    Height = 13
+    Caption = 'Migrar a partir de:'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'MS Sans Serif'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
+  object Label10: TLabel
+    Left = 3
+    Top = 26
+    Width = 49
+    Height = 13
+    Caption = 'Contrato'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'MS Sans Serif'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
+  object Panel1: TPanel
+    Left = 0
+    Top = 66
+    Width = 649
+    Height = 198
+    TabOrder = 0
+    object Shape1: TShape
+      Left = 0
+      Top = 48
+      Width = 648
+      Height = 9
+      Brush.Color = clBlue
+    end
+    object Shape3: TShape
+      Left = 0
+      Top = 188
+      Width = 649
+      Height = 9
+      Brush.Color = clBlue
+    end
+    object Label5: TLabel
+      Left = 6
+      Top = 25
+      Width = 70
+      Height = 13
+      Caption = 'Hora Inicial:'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object lblhorasI: TLabel
+      Left = 79
+      Top = 25
+      Width = 54
+      Height = 13
+      AutoSize = False
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Label7: TLabel
+      Left = 306
+      Top = 25
+      Width = 63
+      Height = 13
+      Caption = 'Hora Final:'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object lblhorasF: TLabel
+      Left = 371
+      Top = 25
+      Width = 53
+      Height = 13
+      AutoSize = False
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Label9: TLabel
+      Left = 7
+      Top = 157
+      Width = 99
+      Height = 13
+      Caption = 'Processando >>>'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Label6: TLabel
+      Left = 154
+      Top = 25
+      Width = 79
+      Height = 13
+      AutoSize = False
+      Caption = 'Open Query:'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object lblquery: TLabel
+      Left = 229
+      Top = 25
+      Width = 53
+      Height = 13
+      AutoSize = False
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object lblProcess: TLabel
+      Left = 110
+      Top = 158
+      Width = 535
+      Height = 25
+      AutoSize = False
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+      WordWrap = True
+    end
+    object lblImp: TLabel
+      Left = 511
+      Top = 26
+      Width = 128
+      Height = 13
+      AutoSize = False
+      Caption = 'Nr.Import.:'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Shape4: TShape
+      Left = 0
+      Top = 145
+      Width = 649
+      Height = 10
+      Brush.Color = clBlue
+    end
+    object Label2: TLabel
+      Left = 8
+      Top = 171
+      Width = 69
+      Height = 13
+      Caption = 'Reg.Lidos->'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object lblReg: TLabel
+      Left = 79
+      Top = 171
+      Width = 87
+      Height = 13
+      AutoSize = False
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object StaticText1: TStaticText
+      Left = 2
+      Top = 0
+      Width = 647
+      Height = 17
+      AutoSize = False
+      Caption = 
+        '                                                              De' +
+        'talhes da Migra'#231#227'o'
+      Color = clBlue
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWhite
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentColor = False
+      ParentFont = False
+      TabOrder = 0
+    end
+    object SGGrade: TStringGrid
+      Left = 0
+      Top = 55
+      Width = 648
+      Height = 89
+      Color = clGray
+      ColCount = 8
+      DefaultRowHeight = 20
+      FixedColor = clBlue
+      RowCount = 4
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWhite
+      Font.Height = -11
+      Font.Name = 'MS Sans Serif'
+      Font.Style = [fsBold]
+      ParentFont = False
+      TabOrder = 1
+    end
+    object BtnDoc: TBitBtn
+      Left = 552
+      Top = 160
+      Width = 91
+      Height = 25
+      Caption = 'Ajustes Gerais'
+      TabOrder = 2
+      Visible = False
+      OnClick = BtnDocClick
+    end
+  end
+  object MEData: TMaskEdit
+    Left = 329
+    Top = 40
+    Width = 101
+    Height = 21
+    Enabled = False
+    EditMask = '!99/99/9999-99\.99;1;_'
+    MaxLength = 16
+    TabOrder = 1
+    Text = '  /  /    -  .  '
+  end
+  object CboContrato: TComboBox
+    Left = 2
+    Top = 40
+    Width = 320
+    Height = 21
+    Style = csDropDownList
+    TabOrder = 2
+  end
+  object BtnMigrar: TBitBtn
+    Left = 561
+    Top = 37
+    Width = 81
+    Height = 25
+    Caption = '&Migrar'
+    TabOrder = 4
+    OnClick = BtnMigrarClick
+  end
+  object CBEnd: TCheckBox
+    Left = 436
+    Top = 34
+    Width = 120
+    Height = 17
+    Hint = 'Atualizar o endere'#231'o dos Benefici'#225'rios'
+    Caption = 'Endere'#231'os Benef'
+    Checked = True
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'MS Sans Serif'
+    Font.Style = [fsBold]
+    ParentFont = False
+    ParentShowHint = False
+    ShowHint = True
+    State = cbChecked
+    TabOrder = 5
+  end
+  object CBCartoes: TCheckBox
+    Left = 196
+    Top = 8
+    Width = 120
+    Height = 17
+    Hint = 'Chamar a procedure que atualiza os cart'#245'es'
+    Caption = 'Atualizar Cart'#245'es'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'MS Sans Serif'
+    Font.Style = [fsBold]
+    ParentFont = False
+    ParentShowHint = False
+    ShowHint = True
+    TabOrder = 3
+    Visible = False
+  end
+  object CBTEmp: TCheckBox
+    Left = 436
+    Top = 1
+    Width = 160
+    Height = 17
+    Hint = 
+      'Executa o balance line sem a chamada para a procedure de carga n' +
+      'as diferenciais'
+    Caption = 'Balance line Tempor'#225'rio'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'MS Sans Serif'
+    Font.Style = [fsBold]
+    ParentFont = False
+    ParentShowHint = False
+    ShowHint = True
+    TabOrder = 6
+  end
+  object chkselcontrato: TCheckBox
+    Left = 436
+    Top = 18
+    Width = 205
+    Height = 17
+    Caption = 'Apenas o contrato Selecionado'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'MS Sans Serif'
+    Font.Style = [fsBold]
+    ParentFont = False
+    TabOrder = 7
+  end
+end

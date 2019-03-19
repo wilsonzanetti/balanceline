@@ -1,0 +1,57 @@
+create or replace procedure ATUALIZARLOTACOES is
+/*
+ DATA CRIAÇÃO.:19/01/2006
+ ANALISTA RESPONSÁVEL .: ALESSANDRO LUIZ MAMUS
+ FINALIDADE.: INCLUIR AS LOTAÇÕES NA TABELA SAM_CONTRATO_LOTACAO PARA OS
+              CONTRATOS DE ASSOCIADOS/APOSENTADOS/DEPENDENTES INDIRETOS
+*/
+  CURSOR CURSOR_LOTACOES IS
+          select distinct
+                trim(csc039wendtrab) DESCRICAO,
+                to_number(trim(substr(trim(csc039wendtrab),1,length(trim(csc039wendtrab))-1))) CODIGO,
+                trim(SUBSTR(trim(CSC039WENDTRAB),LENGTH(trim(csc039wendtrab)),1)) DV
+           from tcsc039 a
+          where not exists
+          (
+             select '1'
+               from tcsc039 b
+                    join sam_contrato_lotacao C
+                    ON to_number(trim(substr(trim(b.csc039wendtrab),1,length(trim(b.csc039wendtrab))-1)))=codigo
+                    and trim(DV)=trim(SUBSTR(trim(b.CSC039WENDTRAB),LENGTH(trim(b.csc039wendtrab)),1))
+              where contrato IN (2,7) and csc039wcodplan=0 --and a.csc039wendtrab=b.csc039wendtrab
+          ) and  (not csc039wendtrab like '%A%'  and not csc039wendtrab like '%T%' and not csc039wendtrab like '%P%')
+            and trim(csc039wendtrab) is not null
+            and length(trim(csc039wendtrab)) >= 5;
+   MAX_HANDLE NUMBER:=0;
+   NR_REGISTROS NUMBER:=0;
+   FUNCTION EXISTS_RECORD(V_CODIGO IN NUMBER,V_DV IN VARCHAR2,V_CONTRATO IN NUMBER) RETURN NUMBER AS
+   V_REGISTRO NUMBER;
+   BEGIN
+      SELECT COUNT('1') INTO V_REGISTRO
+        FROM SAM_CONTRATO_LOTACAO
+       WHERE CODIGO=V_CODIGO
+             AND DV=V_DV AND CONTRATO=V_CONTRATO;
+       RETURN V_REGISTRO;
+   END;
+begin
+  execute immediate 'alter session set nls_date_format=''dd/mm/yyyy hh24:mi:ss'' ';
+  SELECT MAX(HANDLE) INTO MAX_HANDLE FROM SAM_CONTRATO_LOTACAO;
+  FOR CURSOR_AUX IN CURSOR_LOTACOES LOOP --CONTRATO ASSOCIADOS
+      IF EXISTS_RECORD(CURSOR_AUX.CODIGO,CURSOR_AUX.DV,2) = 0  THEN
+            MAX_HANDLE:=MAX_HANDLE + 1;
+            INSERT INTO SAM_CONTRATO_LOTACAO
+            (HANDLE,DESCRICAO,CODIGO,DV,CONTRATO)
+            VALUES
+            (MAX_HANDLE,CURSOR_AUX.DESCRICAO,CURSOR_AUX.CODIGO,CURSOR_AUX.DV,2);
+            COMMIT;
+      END IF;
+      IF EXISTS_RECORD(CURSOR_AUX.CODIGO,CURSOR_AUX.DV,7) = 0  THEN --DEPENDENTES INDIRETOS
+            MAX_HANDLE:=MAX_HANDLE + 1;
+            INSERT INTO SAM_CONTRATO_LOTACAO
+            (HANDLE,DESCRICAO,CODIGO,DV,CONTRATO)
+            VALUES
+            (MAX_HANDLE,CURSOR_AUX.DESCRICAO,CURSOR_AUX.CODIGO,CURSOR_AUX.DV,7);
+            COMMIT;
+      END IF;
+  END LOOP;
+end ATUALIZARLOTACOES;

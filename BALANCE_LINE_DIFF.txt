@@ -1,0 +1,338 @@
+CREATE OR REPLACE PROCEDURE BALANCE_LINE_DIFF (qtd37 out number,qtd39 out number) is
+/*
+  Created by Alessandro Luiz Mamus - 13/03/2003 - 11:45H
+  Finalidade:Ajustar o campo munic?pio da TCSC039_DIFF;
+             Fazer o balance_line das diff's.
+  Altera??o: 24/06/08 - Inclus?o dos campos relacionados ao RG
+*/
+    --CURSOR PARA AS AG?NCIAS
+   CURSOR CAGENCIAS IS
+      SELECT TO_NUMBER(SUBSTR(B.CSC005WPRFAGEN,1,4)) HANDLE,
+             B.CSC005WNOMAGEN NOME,
+             SUBSTR(B.CSC005WPRFAGEN,5,1) DV,
+            'A' SITUACAO,
+            1 BANCO,
+            SUBSTR(B.CSC005WPRFAGEN,1,4) AGENCIA,
+            C.HANDLE MUNICIPIO,
+            C.ESTADO
+      FROM  TCSC004 A,
+            TCSC005 B,
+            MUNICIPIOS C,
+            ESTADOS D
+      WHERE B.CSC005WCODMUNI = A.CSC004WCODMUNI AND
+            A.CSC004WSGLUFYY = B.CSC005WSGLUFYY AND
+            LTRIM(RTRIM(A.CSC004WNOMMUNI)) = LTRIM(RTRIM(C.NOME)) AND
+            D.HANDLE = C.ESTADO AND
+            A.CSC004WSGLUFYY = D.SIGLA AND
+            B.CSC005WPRFAGEN IS NOT NULL AND
+            length(ltrim(rtrim(B.CSC005WPRFAGEN))) > 0  AND
+            TO_NUMBER(SUBSTR(B.CSC005WPRFAGEN,1,4)) NOT IN (SELECT HANDLE FROM SFN_AGENCIA)
+      ORDER BY B.CSC005WNOMAGEN;
+--ALTERA??O NO DIA 04.08.2004
+    CURSOR CTABLE37 IS
+       SELECT CSC037WMTRBENF,
+              CSC037WNRODEPY
+         FROM TCSC037_DIFF;
+    CURSOR CTABLE39 IS
+        SELECT CSC039WMTRBENF,
+               CSC039WNRODEPY
+          FROM TCSC039_DIFF;
+   vcommit number :=0;
+   VQTDREG NUMBER :=0;
+    --CURSOR PARA OS CESEC
+   CURSOR CCESECS IS
+            SELECT T02.CSC002WPRFCSEC PRFCESEC
+            ,T02.CSC002WNOMCSEC NOME
+            ,T02.CSC002WPRFCDIP PRFCEDIP
+            ,T02.CSC002WVLRPLUS VLRPLUS
+            ,T02.CSC002WPRFCSECPROC PRFCESECPROC
+            ,T02.CSC002WPRFGREC PRFGREC
+            ,'A' SITUACAO
+            ,'2' CONTRATO
+      FROM  TCSC002 T02
+      WHERE T02.CSC002WPRFCSEC NOT IN (SELECT PRFCESEC FROM SAM_CONTRATO_CESEC)
+      ORDER BY T02.CSC002WPRFCSEC;
+    --CURSOR PARA AS LOTA??ES
+   CURSOR CLOTACAO IS
+            SELECT T05.CSC005WNOMAGEN NOME
+            ,SUBSTR(T05.CSC005WPRFAGEN,1,4) CODIGO
+            ,SUBSTR(T05.CSC005WPRFAGEN,5,1) DV
+            ,'2' CONTRATO
+            ,CCE.HANDLE CESEC
+      FROM  TCSC005 T05,SAM_CONTRATO_CESEC CCE
+      WHERE T05.CSC005WPRFCSEC = CCE.PRFCESEC
+      AND length(ltrim(rtrim(T05.CSC005WPRFAGEN))) > 0  AND
+      TO_NUMBER(SUBSTR(T05.CSC005WPRFAGEN,1,4)) NOT IN (SELECT CODIGO FROM SAM_CONTRATO_LOTACAO)
+      ORDER BY T05.CSC005WPRFAGEN;
+begin
+   execute immediate 'alter session set nls_date_format=''dd/mm/yyyy hh24:mi:ss'' ';
+   --**************************************************************
+   --      INSERE AS AGENCIAS INEXISTENTES EM SFN_AGENCIAS
+   --**************************************************************
+   For cAgenciaAux in Cagencias
+   loop
+      INSERT INTO SFN_AGENCIA
+      (HANDLE, NOME, DV, SITUACAO, BANCO, AGENCIA, MUNICIPIO, ESTADO)
+      VALUES
+      (cAgenciaAux.HANDLE, cAgenciaAux.NOME, cAgenciaAux.DV, cAgenciaAux.SITUACAO, cAgenciaAux.BANCO,
+       cAgenciaAux.AGENCIA, cAgenciaAux.MUNICIPIO, cAgenciaAux.ESTADO);
+      COMMIT;
+   end loop;
+   --***************************************************************
+   --atualizar o nome das Ag?ncias de acordo com o CSC
+   --***************************************************************
+   update sfn_agencia a
+      set a.nome=(select c.csc005wnomagen
+                    from tcsc005 c
+                    where TO_NUMBER(trim(SUBSTR(c.CSC005WPRFAGEN,1,4)))=a.handle)
+    where a.handle in
+    (
+        select ag.handle
+        from sfn_agencia ag
+        join tcsc005 b on TO_NUMBER(trim(SUBSTR(b.CSC005WPRFAGEN,1,4)))=ag.handle
+        and ag.dv=trim(SUBSTR(b.CSC005WPRFAGEN,5,1)) --inclu?da esta linha
+        where length(ltrim(rtrim(B.CSC005WPRFAGEN))) > 0 and trim(ag.nome) <> trim(b.csc005wnomagen)
+    );
+    commit;
+   --**************************************************************
+   --      INSERE OS CESECS INEXISTENTES EM SAM_CONTRATO_CESEC
+   --**************************************************************
+   For cCesecAux in CCESECS
+   loop
+      INSERT INTO SAM_CONTRATO_CESEC
+      (HANDLE,PRFCESEC,NOME,PRFCEDIP,VLRPLUS,PRFCESECPROC,PRFGREC,SITUACAO,CONTRATO)
+      VALUES
+      (SEQ_CESEC.NEXTVAL,cCesecAux.PRFCESEC,cCesecAux.NOME,cCesecAux.PRFCEDIP,cCesecAux.VLRPLUS,cCesecAux.PRFCESECPROC
+      ,cCesecAux.PRFGREC,cCesecAux.SITUACAO,cCesecAux.CONTRATO);
+      COMMIT;
+   end loop;
+   --**************************************************************
+   --      INSERE AS LOTA??ES INEXISTENTES EM SAM_CONTRATO_LOTACAO
+   --**************************************************************
+   For cLotacaoAux in CLOTACAO
+   loop
+      INSERT INTO SAM_CONTRATO_LOTACAO
+      (HANDLE,DESCRICAO,CODIGO,DV,CONTRATO,CESEC)
+      VALUES
+      (SEQ_CONTRLOTAC.NEXTVAL,cLotacaoAux.NOME,cLotacaoAux.CODIGO
+      ,cLotacaoAux.DV,cLotacaoAux.CONTRATO,cLotacaoAux.CESEC);
+      COMMIT;
+   end loop;
+   --********************************************************************************************
+   --      BALANCE LINE DAS DIFF - AJUSTAR AS TABELAS PARA A EXECU??O DO PROGRAMA DE BALANCE LINE
+   --********************************************************************************************
+--FAZ O BALANCE LINE DA TABELA TCSC037_DIFF E TCSC037 FULL COM O COMANDO MERGE DO ORACLE
+merge into tcsc037 csc37
+using tcsc037_diff csc37dif on
+      (csc37dif.csc037wmtrbenf = csc37.csc037wmtrbenf and csc37dif.csc037wnrodepy = csc37.csc037wnrodepy)
+when matched then
+     update set
+          HANDLE = csc37dif.HANDLE,
+          CSC037WSEQTITL = csc37dif.CSC037WSEQTITL,
+          CSC037WCODVINC = csc37dif.CSC037WCODVINC,
+          CSC037WNOMBENF = csc37dif.CSC037WNOMBENF,
+          CSC037WINDSEXO = csc37dif.CSC037WINDSEXO,
+          CSC037WDMANASC = csc37dif.CSC037WDMANASC,
+          CSC037WINDSITY = csc37dif.CSC037WINDSITY,
+          CSC037WCODGRPOBENF = csc37dif.CSC037WCODGRPOBENF,
+          CSC037WINDMOTV = csc37dif.CSC037WINDMOTV,
+          CSC037WINDECIV = csc37dif.CSC037WINDECIV ,
+          CSC037WDMAADMS = csc37dif.CSC037WDMAADMS,
+          CSC037WDMAINICSUSP = csc37dif.CSC037WDMAINICSUSP,
+          CSC037WDMAFIMYSUSP = csc37dif.CSC037WDMAFIMYSUSP ,
+          CSC037WDMAFIMYDRTO = csc37dif.CSC037WDMAFIMYDRTO,
+          CSC037WDMACADY = csc37dif.CSC037WDMACADY,
+          CSC037WDMAATUA = csc37dif.CSC037WDMAATUA,
+          CSC037WNROCART = csc37dif.CSC037WNROCART,
+          CSC037WINDREGYPROV = csc37dif.CSC037WINDREGYPROV,
+          CSC037WCODSITU = csc37dif.CSC037WCODSITU,
+          CSC037WDMASITU = csc37dif.CSC037WDMASITU,
+          CSC037WDMAVALICART = csc37dif.CSC037WDMAVALICART,
+          CSC037WPRFCART = csc37dif.CSC037WPRFCART,
+          CSC037WDMAADCAO = csc37dif.CSC037WDMAADCAO,
+          CSC037WNOMREDZ = csc37dif.CSC037WNOMREDZ,
+          CSC037WMTRREFR = csc37dif.CSC037WMTRREFR,
+          CSC037WDEPREFR = csc37dif.CSC037WDEPREFR,
+          CSC037WSTSREFR = csc37dif.CSC037WSTSREFR
+when not matched then
+     insert (HANDLE, CSC037WMTRBENF,
+            CSC037WNRODEPY, CSC037WSEQTITL,
+            CSC037WCODVINC, CSC037WNOMBENF,
+            CSC037WINDSEXO, CSC037WDMANASC,
+            CSC037WINDSITY, CSC037WCODGRPOBENF,
+            CSC037WINDMOTV, CSC037WINDECIV,
+            CSC037WDMAADMS, CSC037WDMAINICSUSP,
+            CSC037WDMAFIMYSUSP, CSC037WDMAFIMYDRTO,
+            CSC037WDMACADY, CSC037WDMAATUA,
+            CSC037WNROCART, CSC037WINDREGYPROV,
+            CSC037WCODSITU, CSC037WDMASITU,
+            CSC037WDMAVALICART, CSC037WPRFCART,
+            CSC037WDMAADCAO, CSC037WNOMREDZ,
+            CSC037WMTRREFR, CSC037WDEPREFR,
+            CSC037WSTSREFR)
+     values
+          (csc37dif.HANDLE, csc37dif.CSC037WMTRBENF, csc37dif.CSC037WNRODEPY, csc37dif.CSC037WSEQTITL,
+          csc37dif.CSC037WCODVINC, csc37dif.CSC037WNOMBENF, csc37dif.CSC037WINDSEXO, csc37dif.CSC037WDMANASC,
+          csc37dif.CSC037WINDSITY, csc37dif.CSC037WCODGRPOBENF, csc37dif.CSC037WINDMOTV, csc37dif.CSC037WINDECIV,
+          csc37dif.CSC037WDMAADMS, csc37dif.CSC037WDMAINICSUSP, csc37dif.CSC037WDMAFIMYSUSP, csc37dif.CSC037WDMAFIMYDRTO,
+          csc37dif.CSC037WDMACADY, csc37dif.CSC037WDMAATUA, csc37dif.CSC037WNROCART, csc37dif.CSC037WINDREGYPROV,
+          csc37dif.CSC037WCODSITU, csc37dif.CSC037WDMASITU, csc37dif.CSC037WDMAVALICART, csc37dif.CSC037WPRFCART,
+          csc37dif.CSC037WDMAADCAO, csc37dif.CSC037WNOMREDZ, csc37dif.CSC037WMTRREFR,
+          csc37dif.CSC037WDEPREFR, csc37dif.CSC037WSTSREFR);
+          commit;
+--FAZ O BALANCE LINE DA TABELA TCSC039_DIFF E TCSC039 FULL COM O COMANDO MERGE DO ORACLE
+merge into tcsc039 csc39
+using tcsc039_diff csc39dif on
+      (csc39dif.csc039wmtrbenf = csc39.csc039wmtrbenf and csc39dif.csc039wnrodepy = csc39.csc039wnrodepy)
+when matched then
+     update set
+      CSC039WCODCARR = csc39dif.CSC039WCODCARR, CSC039WCODVPYY = csc39dif.CSC039WCODVPYY,
+      CSC039WQTDANUE = csc39dif.CSC039WQTDANUE, CSC039WINDADIA = csc39dif.CSC039WINDADIA,
+      CSC039WVLRSLDO = csc39dif.CSC039WVLRSLDO, CSC039WENDTRAB = csc39dif.CSC039WENDTRAB,
+      CSC039WNROCNTACORR = csc39dif.CSC039WNROCNTACORR, CSC039WPRFAGEN = csc39dif.CSC039WPRFAGEN,
+      CSC039WDMAATUA = csc39dif.CSC039WDMAATUA, CSC039WCODPLAN = csc39dif.CSC039WCODPLAN,
+      CSC039WDMAVIGE = csc39dif.CSC039WDMAVIGE, CSC039WCODPLANANTE = csc39dif.CSC039WCODPLANANTE,
+      CSC039WDMAVIGEANTE = csc39dif.CSC039WDMAVIGEANTE, CSC039WDMAULTMPGTO = csc39dif.CSC039WDMAULTMPGTO,
+      CSC039WENDCORR = csc39dif.CSC039WENDCORR, CSC039WBAICORR = csc39dif.CSC039WBAICORR,
+      CSC039WCEPCORR = csc39dif.CSC039WCEPCORR, CSC039WMUNCORR = csc39dif.CSC039WMUNCORR,
+      CSC039WUFYCORR = csc39dif.CSC039WUFYCORR, CSC039WINDCARTPAGO = csc39dif.CSC039WINDCARTPAGO,
+      CSC039WCODUSER = csc39dif.CSC039WCODUSER, CSC039WINDCARE = csc39dif.CSC039WINDCARE,
+      CSC039WVARPLAN = csc39dif.CSC039WVARPLAN, CSC039WCODOCUP = csc39dif.CSC039WCODOCUP,
+      CSC039WDDDRESI = csc39dif.CSC039WDDDRESI, CSC039WTELRESI = csc39dif.CSC039WTELRESI,
+      CSC039WDDDCOME = csc39dif.CSC039WDDDCOME, CSC039WTELCOME = csc39dif.CSC039WTELCOME,
+      CSC039WRAMCOME = csc39dif.CSC039WRAMCOME, CSC039WMTRANTE = csc39dif.CSC039WMTRANTE,
+      CSC039WDEPANTE = csc39dif.CSC039WDEPANTE, CSC039WNROCPFY = csc39dif.CSC039WNROCPFY,
+      CSC039WDIGCPFY = csc39dif.CSC039WDIGCPFY, CSC039WQTDANOSCASI = csc39dif.CSC039WQTDANOSCASI,
+      CSC039WTPOPGTO = csc39dif.CSC039WTPOPGTO, CSC039WDIAPGTO = csc39dif.CSC039WDIAPGTO,
+      CSC039WQTDDIASINAD = csc39dif.CSC039WQTDDIASINAD, CSC039WINDENDECORR = csc39dif.CSC039WINDENDECORR,
+      CSC039WPRFDEPEUSER = csc39dif.CSC039WPRFDEPEUSER, CSC039WDMAVIGEPGTO = csc39dif.CSC039WDMAVIGEPGTO,
+      CSC039WNROSCAO = csc39dif.CSC039WNROSCAO, CSC039WPRFDEPERESP = csc39dif.CSC039WPRFDEPERESP,
+      CSC039WENDMAIL = csc39dif.CSC039WENDMAIL, CSC039WDDDCELU = csc39dif.CSC039WDDDCELU,
+      CSC039WNROCELU = csc39dif.CSC039WNROCELU, CSC039WDMAATUAENDE = csc39dif.CSC039WDMAATUAENDE,
+      CSC039WMTRCORR = csc39dif.CSC039WMTRCORR, CSC039WDDDFAXY = csc39dif.CSC039WDDDFAXY,
+      CSC039WNROFAXY = csc39dif.CSC039WNROFAXY, CSC039WOPCTRNS = csc39dif.CSC039WOPCTRNS,
+      CSC039WCODCOMS = csc39dif.CSC039WCODCOMS, CSC039WINDLIMI = csc39dif.CSC039WINDLIMI,
+      CSC039WINDACID = csc39dif.CSC039WINDACID, TX_NTZ=csc39dif.TX_NTZ,
+      TX_REG_GRL = csc39dif.TX_REG_GRL, TX_ORG_EMT = csc39dif.TX_ORG_EMT,
+      DT_REG_GRL = csc39dif.DT_REG_GRL, CD_BRL_OCP = csc39dif.cd_brl_ocp,
+      IN_OTR_USU = csc39dif.in_otr_usu, TX_RCBR_INFM = csc39dif.tx_rcbr_infm,
+      TX_NM_RSP = csc39dif.tx_nm_rsp, DT_NSC_RSP = csc39dif.dt_nsc_rsp,
+      TX_SEXO_RSP = csc39dif.tx_sexo_rsp, NR_CPF_RSP = csc39dif.nr_cpf_rsp,
+      CD_EST_CVL_RSP = csc39dif.cd_est_cvl_rsp, TX_NTZ_RSP = csc39dif.tx_ntz_rsp,
+      TX_REG_GRL_RSP = csc39dif.tx_reg_grl_rsp, TX_ORG_EMT_RSP = csc39dif.tx_org_emt_rsp,
+      DT_REG_GRL_RSP = csc39dif.dt_reg_grl_rsp, CD_BRL_OCP_RSP = csc39dif.cd_brl_ocp_rsp,
+      TX_PMCO = csc39dif.tx_pmco, NR_LGR = csc39dif.nr_lgr, TX_CMPT = csc39dif.tx_cmpt,
+      NR_CPF_RSP_FNCO = csc39dif.nr_cpf_rsp_fnco, NM_RSP_FNCO = csc39dif.nm_rsp_fnco
+when not matched then
+     insert (CSC039WMTRBENF,CSC039WNRODEPY, CSC039WCODCARR,CSC039WCODVPYY,
+            CSC039WQTDANUE,CSC039WINDADIA,  CSC039WVLRSLDO,CSC039WENDTRAB,
+            CSC039WNROCNTACORR,CSC039WPRFAGEN, CSC039WDMAATUA,CSC039WCODPLAN,
+            CSC039WDMAVIGE,CSC039WCODPLANANTE, CSC039WDMAVIGEANTE,CSC039WDMAULTMPGTO,
+            CSC039WENDCORR,CSC039WBAICORR, CSC039WCEPCORR,CSC039WMUNCORR,
+            CSC039WUFYCORR,CSC039WINDCARTPAGO, CSC039WCODUSER,CSC039WINDCARE,
+            CSC039WVARPLAN,CSC039WCODOCUP, CSC039WDDDRESI,CSC039WTELRESI,
+            CSC039WDDDCOME,CSC039WTELCOME, CSC039WRAMCOME,CSC039WMTRANTE,
+            CSC039WDEPANTE,CSC039WNROCPFY, CSC039WDIGCPFY,CSC039WQTDANOSCASI,
+            CSC039WTPOPGTO,CSC039WDIAPGTO, CSC039WQTDDIASINAD,CSC039WINDENDECORR,
+            CSC039WPRFDEPEUSER,CSC039WDMAVIGEPGTO, CSC039WNROSCAO,CSC039WPRFDEPERESP,
+            CSC039WENDMAIL,CSC039WDDDCELU, CSC039WNROCELU,CSC039WDMAATUAENDE,
+            CSC039WMTRCORR,CSC039WDDDFAXY, CSC039WNROFAXY,CSC039WOPCTRNS,
+            CSC039WCODCOMS,CSC039WINDLIMI, CSC039WINDACID, TX_NTZ, TX_REG_GRL,
+            TX_ORG_EMT, DT_REG_GRL, CD_BRL_OCP, IN_OTR_USU, TX_RCBR_INFM, TX_NM_RSP,
+            DT_NSC_RSP, TX_SEXO_RSP, NR_CPF_RSP, CD_EST_CVL_RSP, TX_NTZ_RSP,
+            TX_REG_GRL_RSP, TX_ORG_EMT_RSP, DT_REG_GRL_RSP, CD_BRL_OCP_RSP, TX_PMCO,NR_LGR,
+            TX_CMPT,NR_CPF_RSP_FNCO,NM_RSP_FNCO) values
+            (csc39dif.CSC039WMTRBENF, csc39dif.CSC039WNRODEPY,
+            csc39dif.CSC039WCODCARR, csc39dif.CSC039WCODVPYY,
+            csc39dif.CSC039WQTDANUE, csc39dif.CSC039WINDADIA,
+            csc39dif.CSC039WVLRSLDO, csc39dif.CSC039WENDTRAB,
+            csc39dif.CSC039WNROCNTACORR, csc39dif.CSC039WPRFAGEN,
+            csc39dif.CSC039WDMAATUA, csc39dif.CSC039WCODPLAN,
+            csc39dif.CSC039WDMAVIGE, csc39dif.CSC039WCODPLANANTE,
+            csc39dif.CSC039WDMAVIGEANTE, csc39dif.CSC039WDMAULTMPGTO,
+            csc39dif.CSC039WENDCORR, csc39dif.CSC039WBAICORR,
+            csc39dif.CSC039WCEPCORR, csc39dif.CSC039WMUNCORR,
+            csc39dif.CSC039WUFYCORR, csc39dif.CSC039WINDCARTPAGO,
+            csc39dif.CSC039WCODUSER, csc39dif.CSC039WINDCARE,
+            csc39dif.CSC039WVARPLAN, csc39dif.CSC039WCODOCUP,
+            csc39dif.CSC039WDDDRESI, csc39dif.CSC039WTELRESI,
+            csc39dif.CSC039WDDDCOME, csc39dif.CSC039WTELCOME,
+            csc39dif.CSC039WRAMCOME, csc39dif.CSC039WMTRANTE,
+            csc39dif.CSC039WDEPANTE, csc39dif.CSC039WNROCPFY,
+            csc39dif.CSC039WDIGCPFY, csc39dif.CSC039WQTDANOSCASI,
+            csc39dif.CSC039WTPOPGTO, csc39dif.CSC039WDIAPGTO,
+            csc39dif.CSC039WQTDDIASINAD, csc39dif.CSC039WINDENDECORR,
+            csc39dif.CSC039WPRFDEPEUSER, csc39dif.CSC039WDMAVIGEPGTO,
+            csc39dif.CSC039WNROSCAO, csc39dif.CSC039WPRFDEPERESP,
+            csc39dif.CSC039WENDMAIL, csc39dif.CSC039WDDDCELU,
+            csc39dif.CSC039WNROCELU, csc39dif.CSC039WDMAATUAENDE,
+            csc39dif.CSC039WMTRCORR, csc39dif.CSC039WDDDFAXY,
+            csc39dif.CSC039WNROFAXY, csc39dif.CSC039WOPCTRNS,
+            csc39dif.CSC039WCODCOMS, csc39dif.CSC039WINDLIMI,
+            csc39dif.CSC039WINDACID, csc39dif.TX_NTZ, csc39dif.TX_REG_GRL,
+            csc39dif.TX_ORG_EMT, csc39dif.DT_REG_GRL, csc39dif.cd_brl_ocp,
+            csc39dif.in_otr_usu, csc39dif.tx_rcbr_infm, csc39dif.tx_nm_rsp,
+            csc39dif.dt_nsc_rsp, csc39dif.tx_sexo_rsp, csc39dif.nr_cpf_rsp,
+            csc39dif.cd_est_cvl_rsp, csc39dif.tx_ntz_rsp, csc39dif.tx_reg_grl_rsp,
+            csc39dif.tx_org_emt_rsp, csc39dif.dt_reg_grl_rsp, csc39dif.cd_brl_ocp_rsp,
+            csc39dif.tx_pmco, csc39dif.nr_lgr, csc39dif.tx_cmpt, csc39dif.nr_cpf_rsp_fnco,
+            csc39dif.nm_rsp_fnco);
+            commit;
+   --Altera??o dia 04.08.2004
+   For cAux in CTABLE37
+   loop
+      SELECT COUNT(*) INTO VQTDREG
+        FROM TCSC039_DIFF
+        WHERE CSC039WMTRBENF=CAUX.CSC037WMTRBENF;
+      IF VQTDREG=0 THEN
+         INSERT INTO TCSC039_DIFF
+         SELECT * FROM TCSC039
+           WHERE CSC039WMTRBENF=CAUX.CSC037WMTRBENF;
+         COMMIT;
+      END IF;
+   end loop;
+   for cAux1 in CTABLE39
+   LOOP
+      SELECT COUNT(*) INTO VQTDREG
+        FROM TCSC037_DIFF
+        WHERE CSC037WMTRBENF=CAUX1.CSC039WMTRBENF AND CSC037WNRODEPY=CAUX1.CSC039WNRODEPY;
+      IF VQTDREG=0 THEN
+         INSERT INTO TCSC037_DIFF
+         SELECT * FROM TCSC037
+           WHERE CSC037WMTRBENF=CAUX1.CSC039WMTRBENF
+                 AND CSC037WNRODEPY=CAUX1.CSC039WNRODEPY;
+         COMMIT;
+      END IF;
+   END LOOP;
+-----------INSERIDO CONFORME SERVICE CALL NRO 100018 --05/12/2005 -- MACIEL
+      --inserir os dependentes indiretos que foram cancelados no CSC e por algum
+      --motivo n?o foram atualizados no SOC
+      insert into tcsc037_diff
+      select c37.*
+        from tcsc037 c37
+             join sam_beneficiario sb on sb.handle=c37.handle
+      where sb.contrato=7 and csc037windmotv not in (60,63) and
+            csc037wdmafimydrto between 19000101 and to_number(to_char(sysdate,'yyyymmdd')) and
+            datacancelamento is null and not exists (select '1'
+                                                       from sam_beneficiario_mod m
+                                                            join sam_beneficiario_mod_historico mh on mh.beneficiariomod=m.handle
+                                                       where m.beneficiario=sb.handle and origem='R')
+      and not exists (select '1' from tcsc037_diff a where a.handle=c37.handle);
+       commit;
+      insert into tcsc039_diff
+      select distinct c39.*
+        from tcsc037 c37
+             join sam_beneficiario sb on sb.handle=c37.handle
+             join tcsc039 c39 on c39.csc039wmtrbenf=c37.csc037wmtrbenf and c39.csc039wnrodepy=c37.csc037wnrodepy
+      where sb.contrato=7 and csc037windmotv not in (60,63) and
+            csc037wdmafimydrto between 19000101 and to_number(to_char(sysdate,'yyyymmdd')) and
+            datacancelamento is null and not exists (select '1'
+                                                       from sam_beneficiario_mod m
+                                                            join sam_beneficiario_mod_historico mh on mh.beneficiariomod=m.handle
+                                                       where m.beneficiario=sb.handle and origem='R')
+      and not exists (select '1' from tcsc039_diff a where a.csc039wmtrbenf=c39.csc039wmtrbenf and c39.csc039wnrodepy=a.csc039wnrodepy);
+      commit;
+-----------INSERIDO CONFORME SERVICE CALL NRO 100018 --05/12/2005 -- MACIEL
+    select count(*) into qtd37  from tcsc037_diff;
+    select count(*) into qtd39 from tcsc039_diff;
+end BALANCE_LINE_DIFF;

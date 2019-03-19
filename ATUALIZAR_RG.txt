@@ -1,0 +1,77 @@
+CREATE OR REPLACE PROCEDURE ATUALIZAR_RG is
+/*
+  Created by Alessandro Luiz Mamus - 14/03/2003 - 11:25 H
+  updated by Alessandro Luiz Mamus on 22, september 2007.
+  * Incluído o campo TX_RCBR_INFM na carga da TCSC039_diff*
+  *02/08/2007 - Alessandro L Mamus
+  Alterado o tipo de gravação para o campo csc039wnrocelu - de inteiro para string
+  alterado o tamanho da string da composição do nr do celular - de 399 para 400
+  *********************************************************    
+*/
+  Arquivo UTL_FILE.FILE_TYPE; --variavel do tipo arquivo
+  Linha varchar2(1023);
+  textoaux varchar2(1023);
+  v_handle Numeric(9);
+  V_TX_REG_GRL Varchar2(12);
+  V_TX_ORG_EMT Varchar(8);
+  V_DT_REG_GRL Varchar(10);
+begin
+
+  --Variavel do tipo arquivo que recebe o handle do arquivo real
+  Arquivo:=utl_file.fopen('CARGA','csc039dif.txt','r');
+  utl_file.get_line(Arquivo,linha);  --le o Header
+
+  --Obter a quantidade de Registros a serem incluidos na TCSC037_DIFF
+  textoaux:=linha;
+ -- v_handle:=to_number(substr(textoaux,224,10));
+  
+ loop
+ Begin
+       utl_file.get_line(Arquivo,linha);  --le a linha
+       textoaux:=linha;
+       V_TX_REG_GRL:=Null;
+       If (substr(textoaux,1,3)='150') or (substr(textoaux,1,3)='160') Then --SOMENTE FAMÍLIA II
+          if length(substr(textoaux,466,12)) > 0 then
+             V_TX_REG_GRL:=Trim(substr(textoaux,466,12));
+
+          V_TX_ORG_EMT:=Null;
+          if length(substr(textoaux,478,8)) > 0 then
+             V_TX_ORG_EMT:=Trim(substr(textoaux,478,8)); 
+          End If;   
+          
+          V_DT_REG_GRL:=Null;
+          if length(substr(textoaux,486,10)) > 0 then
+              V_DT_REG_GRL:=Trim(SubStr(textoaux,486,2) || '/' || SubStr(textoaux,489,2) || '/' || SubStr(textoaux,492,4));
+          End If;
+             --update na tabela TCSC037_DIFF
+             begin 
+                Update TCSC039_DIFF
+                   Set TX_REG_GRL  =V_TX_REG_GRL,
+                       TX_ORG_EMT  =V_TX_ORG_EMT,
+                       DT_REG_GRL  =V_DT_REG_GRL
+                 Where CSC039WMTRBENF=substr(textoaux,1,9);
+                 commit;                 
+             exception
+                 when others then
+                    insert into migdetlogbenner
+                     values
+                    (1,sysdate,1,'Erro-Balance Line','Erro ao atualizar o RG-->'|| substr(textoaux,1,9) ||' na tabela TCSC039_DIFF');     
+                    Commit;
+             End;      
+
+          End If;   
+       End If;
+
+ exception
+     when no_data_found then   --quando nenhum dado for encontrado na leitura
+        exit;
+ End;
+ End loop;
+
+  --func?o que testa se o arquivo esta aberto
+  if utl_file.is_open(Arquivo) then
+     utl_file.fclose(Arquivo); --fechar o arquivo
+  end if;
+
+
+end ATUALIZAR_RG;

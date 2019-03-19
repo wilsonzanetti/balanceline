@@ -1,0 +1,216 @@
+{ *********************************************************************** }
+{ CASSI - Caixa de Assistência dos Funcionários do Banco do Brasil        }
+{ Analista...: Márcio Brener Costa (marciobrener@hotmail.com)             }
+{ Finalidade.: Funções diversas para integração Sistema SAP via JCO       }
+{ Delphi.....: 6 e 7                                                      }
+{ Versão.....: 1.00 18/04/2006                                            }
+{ Importante.: Biblioteca FuncoesGerais em                                }
+{              uFuncoesGerais in '\\sedesrv143\informacao$\               }
+{              6.Gerência de Sistemas\Sistemas\Magnus\uFuncoesGerais.pas' }
+{                                                                         }
+{ Atualização: 12/03/2008 - SAM_CONTRATO_TPDEP.HANDLE implementado        }
+{ *********************************************************************** }
+
+unit uSAP;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, StdCtrls, Menus, StrUtils, uFuncoesGerais, Contnrs, IniFiles;
+
+type
+  TPA0001 = class
+    PERNR: Integer;
+    PERSG: String;
+end;
+
+type
+  TPA0008 = class
+    PERNR: Integer;
+    ANSAL: Currency;
+end;
+
+type
+  TZTHR_MTRPLSAUDE = class
+    MANDT: Integer;
+    PERNR: Integer;
+    DEPTYP: String;
+    DEPID: String;
+    MTRPLANO: Integer;
+    AEDTM: TDate;
+    HANDLE_TPDEP: Integer;
+  end;
+
+type
+  TSAP = class(TObject)
+  private
+    S, FileName: String;
+    F: TextFile;
+    Lista: TStringList;
+
+  public
+    constructor Create;
+    function ExportaTabela(TabelaSAP, Diretorio: String): String;
+    function GetPA0001: THashedStringList;
+    function GetPA0008: THashedStringList;    
+    function GetZTHR_MTRPLSAUDE: THashedStringList;
+  end;
+
+implementation
+
+var Funcoes: TFuncoesGerais;
+
+constructor TSAP.Create;
+begin
+  DecimalSeparator := '.';
+  Lista := TStringList.Create;
+  Lista.Delimiter := ';';
+end;
+
+function TSAP.GetPA0001: THashedStringList;
+var
+  iPERNR, iPERSG: Integer;
+  o: TPA0001;
+begin
+  { Gerar o arquivo delimitado da tabela }
+  FileName := ExportaTabela('PA0001', Funcoes.DiretorioTemporario);
+
+  AssignFile(F, FileName);
+  Reset(F);
+  while not Eof(F) do
+  begin
+    Readln(F, S);
+
+    if Result = nil then
+    begin
+      iPERNR := Funcoes.GetIndexList(S, 'PERNR');
+      iPERSG := Funcoes.GetIndexList(S, 'PERSG');
+      Result := THashedStringList.Create;
+      Continue;
+    end;
+
+    Lista.DelimitedText := S;
+
+    o := TPA0001.Create;
+    o.PERNR := StrToInt(Lista.Strings[iPERNR]);
+    o.PERSG := Lista.Strings[iPERSG];
+
+    Result.AddObject(IntToStr(o.PERNR), o);
+  end;
+
+  CloseFile(F);
+  DeleteFile(FileName);
+end;
+
+function TSAP.GetPA0008(): THashedStringList;
+var
+  iPERNR, iANSAL: Integer;
+  o: TPA0008;
+begin
+  { Gerar o arquivo delimitado da tabela }
+  FileName := ExportaTabela('PA0008', Funcoes.DiretorioTemporario);
+
+  AssignFile(F, FileName);
+  Reset(F);
+  while not Eof(F) do
+  begin
+    Readln(F, S);
+
+    if Result = nil then
+    begin
+      iPERNR := Funcoes.GetIndexList(S, 'PERNR');
+      iANSAL := Funcoes.GetIndexList(S, 'ANSAL');
+      Result := THashedStringList.Create;
+      Continue;
+    end;
+
+    Lista.DelimitedText := S;
+
+    o       := TPA0008.Create;
+    o.PERNR := StrToInt(Lista.Strings[iPERNR]);
+    o.ANSAL := StrToCurr(Lista.Strings[iANSAL]);
+
+    if Result.IndexOf(IntToStr(o.PERNR)) > 0 then Continue;
+
+    Result.AddObject(IntToStr(o.PERNR), o);
+  end;
+
+  CloseFile(F);
+  DeleteFile(FileName);
+end;
+
+function TSAP.GetZTHR_MTRPLSAUDE: THashedStringList;
+var o: TZTHR_MTRPLSAUDE;
+    Line: Integer;
+begin
+  { Gerar o arquivo delimitado da tabela }
+  FileName := ExportaTabela('ZTHR_MTRPLSAUDE', Funcoes.DiretorioTemporario);
+
+  Line := 0;
+  AssignFile(F, FileName);
+  Reset(F);
+  while not Eof(F) do
+  begin
+    Readln(F, S);
+    Inc(Line);
+
+    //Primeira linha de cabeçalho
+    if Result = nil then
+    begin
+      Result := THashedStringList.Create;
+      Continue;
+    end;
+
+    Lista.DelimitedText := S;
+
+    o              := TZTHR_MTRPLSAUDE.Create;
+    o.PERNR        := StrToInt(Lista.Strings[1]);
+    o.DEPTYP       := Trim(Lista.Strings[2]);
+    o.DEPID        := Trim(Lista.Strings[3]);
+    o.MTRPLANO     := StrToInt(copy(Lista.Strings[4], 0, 13));
+    o.HANDLE_TPDEP := StrToInt(Lista.Strings[6]);
+
+    Result.AddObject(IntToStr(o.MTRPLANO), o);
+  end;
+
+  CloseFile(F);
+  DeleteFile(FileName);
+end;
+
+{ Exporta tabela para arquivo padrão CSV e retorna o caminho do arquivo criado }
+function TSAP.ExportaTabela(TabelaSAP, Diretorio: String): String;
+var
+  CommandLine: String;
+begin
+  CommandLine := '\\sedesrv143\magnus\jre\bin\java.exe -classpath'
+               + ' \\sedesrv143\magnus\sap\cassi.jar;\\sedesrv143\magnus\sap\sapjco.jar'
+               + ' br.com.cassi.sap.util.SAPExportaTabela :TabelaSAP: ":Diretorio:"';
+
+  { Remover o separador ao final do diretório, conforme path canônico }
+  //if RightStr(Diretorio, 1) = '\' then Diretorio := Copy(Diretorio, 1, StrLen(PChar(Diretorio)) - 1);
+
+  CommandLine := AnsiReplaceStr(CommandLine, ':TabelaSAP:', TabelaSAP);
+  CommandLine := AnsiReplaceStr(CommandLine, ':Diretorio:', Diretorio);
+
+  if Funcoes.ExecuteAndWait(CommandLine) > 1 then
+  begin
+    ShowMessage('Execução da função SAP JCO com erro de saída: ' + IntToStr(Error) + #13+#10 + 'Sintaxe: ' + CommandLine);
+
+    raise Exception.Create('Execução da função SAP JCO com erro de saída: ' + IntToStr(Error) + #13+#10 + 'Sintaxe: ' + CommandLine);
+  end;
+
+
+  Result := IncludeTrailingBackslash(Diretorio) + TabelaSAP + '.CSV';
+
+  if FileExists(Result) then Exit;
+
+  raise EExternalException.Create('Não foi criado o arquivo: ' + Result);
+end;
+
+initialization
+  Funcoes := TFuncoesGerais.Create;
+
+end.
+
+
