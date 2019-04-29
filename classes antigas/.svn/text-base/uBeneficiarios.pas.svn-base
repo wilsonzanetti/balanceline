@@ -1,0 +1,312 @@
+{ *********************************************************************** }
+{                                                                         }
+{ CASSI - Caixa de Assistência dos Funcionários Banco do Brasil           }
+{ Definições para identificação de beneficiários do plano de saúde        }
+{ a partir de arquivos SAP                                                }
+{                                                                         }
+{ Márcio Brener Costa - (marciobrener@hotmail.com)                        }
+{ Brasília, 21 de fevereiro de 2006                                       }
+{                                                                         }
+{ *********************************************************************** }
+
+unit uBeneficiarios;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, StdCtrls, Contnrs, Math, IniFiles, ValEdit;
+
+type
+  TBeneficiario = class
+    private
+    public
+      MatriculaSAP: Integer;
+      MatriculaCSC: Integer;
+      MatriculaCSCTitular: Integer;
+      Titular: Boolean;
+      Filho: Boolean;
+      Conjuge: Boolean;
+      DepID: Cardinal;
+      TipoMaoDeObra: (tmoNaoIdentificado, tmoAdministrativa, tmoBasica);
+  end;
+
+type
+  TString = class
+  public
+    Text: String;
+  end;
+
+type
+  TBeneficiarios = class(TObject)
+    Beneficiarios: TObjectList;
+    private
+      PA0001: TValueListEditor;
+    public
+      constructor Create(ArquivoZTHR_MTRPLSAUDE: String; ArquivoPA0001: String = ''); overload;
+      function FindBeneficiario(MatriculaCSC: Integer; out Beneficiario: TBeneficiario): Boolean;
+      procedure CargaPA0001(ArquivoPA0001: String); overload;
+
+    private
+      function PosBeforeStr(const S: String; SubStr: String; const c: Char): Integer;
+      procedure AdicionaBeneficiarioRepetido(const Beneficiario: TBeneficiario);
+  end;
+
+implementation
+
+uses StrUtils;
+
+constructor TBeneficiarios.Create(ArquivoZTHR_MTRPLSAUDE: String; ArquivoPA0001: String = '');
+var
+  F: TextFile;
+  S: String;
+  Flag: Boolean;
+  MatriculaTitular: Integer;
+  i: Integer;
+  PerNr: Integer;
+  Beneficiario: TBeneficiario;
+  Lista: TStringList;
+begin
+  PerNr := 0;
+  MatriculaTitular := 0;
+
+  Lista := TStringList.Create;
+  Lista.Delimiter := '|';
+
+  Beneficiario := TBeneficiario.Create;
+  Beneficiario.MatriculaCSCTitular := 0;
+  Beneficiario.MatriculaCSC := 0;
+  Beneficiario.MatriculaCSCTitular := 0;
+  Beneficiario.DepID := 0;
+
+
+  if (ArquivoPA0001 <> '') and (not FileExists(ArquivoPA0001)) then raise ERangeError.Create('Arquivo nao encontrado: ' + ArquivoPA0001);
+
+  if not FileExists(ArquivoZTHR_MTRPLSAUDE) then raise ERangeError.Create('Arquivo nao encontrado: ' + ArquivoZTHR_MTRPLSAUDE);
+
+  { Carga do Infotipo 0001 - Medidas }
+  CargaPA0001(ArquivoPA0001);
+
+  Beneficiarios := TObjectList.Create;
+
+  //Arquivo Modelo
+  {
+  Tabela:         ZTHR_MTRPLSAUDE
+  Campos exibidos:    6 de   6  Colunas chave fixas:          4  Larg.lista 0250
+  ----------------------------------------------------------
+  | |MANDT|PERNR   |DEPTYP|DEPID|MTRPLANO       |AEDTM     |
+  ----------------------------------------------------------
+  | |300  |00000001|      |     |000020010014380|30.01.2006|
+  | |300  |00000001|1     |     |000020010215080|30.01.2006|
+  | |300  |00000001|2     |01   |000020010092880|30.01.2006|
+  | |300  |00000002|      |     |000020010013880|30.01.2006|
+  | |300  |00000002|1     |     |000020010092480|30.01.2006|
+  | |300  |00000002|2     |01   |000020010092380|30.01.2006|
+  ----------------------------------------------------------
+  }
+
+  try
+    AssignFile(F, ArquivoZTHR_MTRPLSAUDE);
+    Reset(F);
+
+    while not Eof(F) do
+    begin
+      Readln(F, S);
+
+      //Determinar se linha de registro
+      Flag := AnsiPos('300', Copy(S, 1, 10)) > 0;
+
+      if not Flag then Continue;
+
+      Lista.DelimitedText := S;
+
+      //Criar novo Beneficiario
+      i := StrToInt(Lista.Strings[3]);
+      if PerNr <> i then MatriculaTitular := StrToInt(LeftStr(IntToStr(StrToInt64(Lista.Strings[6])), 9));
+      PerNr := i;
+
+      Beneficiario := TBeneficiario.Create;
+      Beneficiario.MatriculaSAP         := i;
+      Beneficiario.Titular              := (Trim(Lista.Strings[4]) = EmptyStr);
+      Beneficiario.Filho                := (Trim(Lista.Strings[4]) = '2');
+      Beneficiario.Conjuge              := (Trim(Lista.Strings[4]) = '1');
+      Beneficiario.MatriculaCSC         := StrToInt(LeftStr(IntToStr(StrToInt64(Lista.Strings[6])), 9));
+      Beneficiario.MatriculaCSCTitular  := MatriculaTitular;
+      Beneficiario.DepID                := StrToIntDef(Trim(Lista.Strings[5]), 0);
+
+      //Formar o sequencial da familia, Titular = 0, Dependente = Dep(n) + 1
+      if not Beneficiario.Titular then Beneficiario.DepID := Beneficiario.DepID + 1;
+
+      Beneficiarios.Add(Beneficiario);
+
+      AdicionaBeneficiarioRepetido(Beneficiario);
+    end;
+
+  finally
+    CloseFile(F);
+  end;
+end;
+
+procedure TBeneficiarios.AdicionaBeneficiarioRepetido(const Beneficiario: TBeneficiario);
+var
+  _Beneficiario: array[0..1] of TBeneficiario;
+  i: Integer;
+begin
+  for i := Low(_Beneficiario) to High(_Beneficiario) do
+  begin
+    _Beneficiario[i] := TBeneficiario.Create;
+    _Beneficiario[i].MatriculaSAP         := Beneficiario.MatriculaSAP;
+    _Beneficiario[i].Titular              := Beneficiario.Titular;
+    _Beneficiario[i].Filho                := Beneficiario.Filho;
+    _Beneficiario[i].Conjuge              := Beneficiario.Conjuge;
+    _Beneficiario[i].MatriculaCSC         := Beneficiario.MatriculaCSC;
+    _Beneficiario[i].MatriculaCSCTitular  := Beneficiario.MatriculaCSCTitular;
+    _Beneficiario[i].DepID                := Beneficiario.DepID;
+  end;
+
+  if Beneficiario.MatriculaCSC = 200108683 then //AECYO FERNANDO AGUIAR RUFINO F
+    _Beneficiario[0].MatriculaCSC := 200108684
+
+  else if Beneficiario.MatriculaCSC = 200104159 then //ALEXANDRE CARDOSO DE PAULA
+  begin
+    _Beneficiario[0].MatriculaCSC := 200101468;
+    _Beneficiario[1].MatriculaCSC := 200104406;
+  end
+
+  else if Beneficiario.MatriculaCSC = 200105946 then //FLAVIANNE DE ARAUJO SOUSA
+  begin
+    _Beneficiario[0].MatriculaCSC := 200102546;
+    _Beneficiario[1].MatriculaCSC := 200101172;
+  end
+
+  else if Beneficiario.MatriculaCSC = 200102545 then //FRANCISCO DIOGO ARAUJO SOUSA
+    _Beneficiario[0].MatriculaCSC := 200101171
+
+  else if Beneficiario.MatriculaCSC = 200104405 then //LARISSA GRAU M DE OLIVEIRA
+    _Beneficiario[0].MatriculaCSC := 200108648
+
+  else if Beneficiario.MatriculaCSC = 200108884 then //LAWRENCE DAVI R DE MOURA
+  begin
+    _Beneficiario[0].MatriculaCSC := 200100191;
+    _Beneficiario[1].MatriculaCSC := 200104261;
+  end
+
+  else if Beneficiario.MatriculaCSC = 200108869 then //PRISCILA DE SOUSA MEDEIROS REG
+    _Beneficiario[0].MatriculaCSC := 200108639
+
+  else if Beneficiario.MatriculaCSC = 200106810 then //REGIANE APARECIDA MARTINS
+    _Beneficiario[0].MatriculaCSC := 200108642
+
+  else if Beneficiario.MatriculaCSC = 200108883 then //REGIANE APARECIDA MARTINS
+    _Beneficiario[0].MatriculaCSC := 200108647;
+
+  { Acrescentar os beneficiarios com matriculas duplicadas }    
+  if _Beneficiario[0].MatriculaCSC <> Beneficiario.MatriculaCSC then Beneficiarios.Add(_Beneficiario[0]);
+  if _Beneficiario[1].MatriculaCSC <> Beneficiario.MatriculaCSC then Beneficiarios.Add(_Beneficiario[1]);
+end;
+
+function TBeneficiarios.PosBeforeStr(const S: String; SubStr: String; const c: Char): Integer;
+var i: Integer;
+begin
+  Result := AnsiPos(SubStr, S);
+
+  if Result = 0 then Exit;
+
+  for i := Result downto 1 do
+  if S[i] = c then
+  begin
+    Result := i;
+    Exit;
+  end;
+end;
+
+procedure TBeneficiarios.CargaPA0001(ArquivoPA0001: String);
+const
+  IndexPERNR: Cardinal = 0;
+  IndexPERSG: Cardinal = 1;
+var
+  F: TextFile;
+  S: String;
+  Flag: Boolean;
+  Beneficiario: TBeneficiario;
+  Posicoes: array[0..1] of Integer;
+begin
+  if not FileExists(ArquivoPA0001) then raise ERangeError.Create('Arquivo nao encontrado: ' + ArquivoPA0001);
+
+  PA0001 := TValueListEditor.Create(nil);
+  Beneficiario := TBeneficiario.Create;
+
+  //Arquivo Modelo
+  {
+  Tabela:         PA0001
+  Campos exibidos:   50 de  50  Colunas chave fixas:          8  Larg.lista 1023
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  | |MANDT|PERNR     |SUBTY|OBJPS|SPRPS|ENDDA     |BEGDA     |SEQNR|AEDTM     |UNAME       |HISTO|ITXEX|REFEX|ORDEX|ITBLD|PREAS|FLAG1|FLAG2|FLAG3|FLAG4|RESE1|RESE2|GRPVL|BUKRS |WERKS |PERSG|PERSK|VDSK1           |GSBER |BTRTL |JUPER|ABKRS|ANSVH|KOSTL       |ORGEH     |PLANS     |STELL     |MSTBR   |SACHA|SACHP|SACHZ|SNAME                         |ENAME                                   |OTYPE|SBMOD |KOKRS |FISTL           |GEBER     |FKBER           |GRANT_NBR           |
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  | |300  |00000001  |     |     |     |31.12.9999|02.05.1997|000  |05.10.2005|KBAHIA      |     |     |     |     |     |     |     |     |     |     |     |     |     |1000  |30CA  |A    |ME   |3020AD00        |AD00  |3000  |     |FC   |     |3020AD00    |50000287  |80000603  |70000175  |        |     |     |     |ADALGISA BORGES N NOMURA      |ADALGISA BORGES N NOMURA                |S    |      |1000  |                |          |                |                    |
+  | |300  |00000002  |     |     |     |31.12.9999|02.05.1997|000  |05.10.2005|KBAHIA      |     |     |     |     |     |     |     |     |     |     |     |     |     |1000  |30CA  |A    |ME   |3020AD00        |AD00  |3000  |     |FC   |     |3020AD00    |50000287  |80000602  |70000175  |        |     |     |     |ALICE MARIA DE FIGUEIREDO     |ALICE MARIA DE FIGUEIREDO               |S    |      |1000  |                |          |                |                    |
+  | |300  |00000003  |     |     |     |31.12.9999|02.05.1997|000  |05.10.2005|KBAHIA      |     |     |     |     |     |     |     |     |     |     |     |     |     |1000  |30CA  |A    |ME   |3010AD00        |AD00  |3000  |     |FC   |     |3010AD00    |50000289  |80000460  |70000181  |        |     |     |     |CARLOS ALBERTO R CINTRA       |CARLOS ALBERTO R CINTRA                 |S    |      |1000  |                |          |                |                    |
+  }
+
+  try
+    AssignFile(F, ArquivoPA0001);
+    Reset(F);
+
+    while not Eof(F) do
+    begin
+      Readln(F, S);
+
+      //Determinar linha de cabecalho de posições/delimitações
+      if (AnsiPos('PERNR', S) > 0) and (AnsiPos('PERSG', S) > 0) then
+      begin
+        Posicoes[IndexPERNR] := PosBeforeStr(S, 'PERNR', '|') + 1;
+        Posicoes[IndexPERSG] := PosBeforeStr(S, 'PERSG', '|') + 1;
+      end;
+
+      //Determinar se linha de registro
+      Flag := AnsiPos('300', Copy(S, 1, 10)) > 0;
+
+      if not Flag then Continue;
+
+      //Adicionar novo Beneficiario
+      Beneficiario.MatriculaSAP := StrToInt(System.Copy(S, Posicoes[IndexPERNR], 8));
+      PA0001.InsertRow(IntToStr(Beneficiario.MatriculaSAP), S[Posicoes[IndexPERSG]], True);
+    end;
+
+  finally
+    CloseFile(F);
+  end;
+end;
+
+function TBeneficiarios.FindBeneficiario(MatriculaCSC: Integer; out Beneficiario: TBeneficiario): Boolean;
+var
+  i: Integer;
+  j: Integer;
+  _Beneficiario: TBeneficiario;
+begin
+  Result := False;
+
+  for i := 0 to Pred(Beneficiarios.Count) do
+  begin
+    _Beneficiario := TBeneficiario(Beneficiarios.Items[i]);
+
+    Result := (_Beneficiario.MatriculaCSC = MatriculaCSC);
+
+    if not Result then Continue;
+
+    Beneficiario := _Beneficiario;
+
+    { Determinar o tipo de mão-de-obra a partir do arquivo de medidas SAP - PA0001 }
+    if PA0001.FindRow(IntToStr(Beneficiario.MatriculaSAP), j) then
+    begin
+      if AnsiPos(PA0001.Values[PA0001.Keys[j]], 'H,I,J,L,M,N') = 0 then
+        Beneficiario.TipoMaoDeObra := tmoAdministrativa
+      else
+        Beneficiario.TipoMaoDeObra := tmoBasica;
+    end;
+
+    Exit;
+  end;
+end;
+
+end.

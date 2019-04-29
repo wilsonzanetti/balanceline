@@ -7668,6 +7668,12 @@ begin
       38: codigoBenner := -1;
       39: codigoBenner := -1;
       47: codigoBenner := 4;
+      73: codigoBenner := 1995;
+      74: codigoBenner := 2015;
+      75: codigoBenner := 12;
+      76: codigoBenner := 1956;
+      77: codigoBenner := 2016;
+
   end;
 
   LoadStringQuery('select handle FROM SOCPRO.SAM_parentesco where codigo='+inttostr(codigoBenner)); //Estava pegando o parentesco da tabela sam_tipodependente
